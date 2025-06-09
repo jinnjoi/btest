@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты теста</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="text-center">Результаты теста</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="student-info mb-4">
+                            <h4>Информация о студенте</h4>
+                            <p><strong>ФИО:</strong> <span id="studentName"></span></p>
+                            <p><strong>Группа:</strong> <span id="studentGroup"></span></p>
+                        </div>
+                        <div class="results mb-4">
+                            <h4>Результаты</h4>
+                            <p><strong>Общий балл:</strong> <span id="totalScore"></span></p>
+                            <p><strong>Максимальный балл:</strong> <span id="maxScore"></span></p>
+                            <div class="progress mb-3">
+                                <div id="scoreProgress" class="progress-bar" role="progressbar"></div>
+                            </div>
+                        </div>
+                        <div class="detailed-results">
+                            <h4>Детальные результаты</h4>
+                            <div id="detailedResults"></div>
+                        </div>
+                        <div class="text-center mt-4">
+                            <a href="index.html" class="btn btn-primary">Вернуться на главную</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="results.js"></script>
+</body>
+</html> 
