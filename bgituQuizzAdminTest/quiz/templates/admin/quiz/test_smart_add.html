@@ -1,0 +1,37 @@
+{% extends "unfold/layouts/base.html" %}
+{% load i18n unfold %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></h1>
+{% endblock %}
+
+{% block content %}
+<div class="p-4">
+    <form action="" method="post" class="space-y-6">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <span>{{ error }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {# Используем официальный способ рендеринга полей из документации Unfold #}
+        <div class="border border-base-200 rounded-default pt-3 px-3 shadow-sm dark:border-base-800">
+            {% for field in form %}
+                {% include "unfold/helpers/field.html" with field=field %}
+            {% endfor %}
+        </div>
+
+        <div class="mt-4">
+            {% component "unfold/components/button.html" with submit=1 %}
+                {% trans "Создать тест" %}
+            {% endcomponent %}
+        </div>
+    </form>
+</div>
+{% endblock %} 

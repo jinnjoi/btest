@@ -32,6 +32,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'quiz',
     'unfold',
     'unfold.contrib.filters',
     'unfold.contrib.forms',
@@ -44,7 +45,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'import_export',
-    'quiz',
 ]
 
 MIDDLEWARE = [
@@ -62,7 +62,7 @@ ROOT_URLCONF = 'bgituquizz.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'locale'],
+        'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'locale'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

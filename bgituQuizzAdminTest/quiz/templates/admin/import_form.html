@@ -1,0 +1,22 @@
+{% extends "unfold/layouts/base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="p-4">
+    <form action="" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="prose prose-sm mt-4">
+            <p>Пожалуйста, убедитесь, что ваш файл соответствует следующим правилам:</p>
+            <ul>
+                <li>Имя файла (без расширения) будет использовано как название <strong>блока вопросов</strong>.</li>
+                <li>В файле должна быть колонка с названием <strong>"discipline"</strong>.</li>
+                <li>В файле должна быть колонка с названием <strong>"competence"</strong>.</li>
+            </ul>
+        </div>
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">{% trans 'Импортировать' %}</button>
+        </div>
+    </form>
+</div>
+{% endblock %} 
