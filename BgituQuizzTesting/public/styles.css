@@ -92,3 +92,41 @@ body {
         font-size: 1rem;
     }
 } 
+
+/* Адаптивные картинки для matching и вариантов */
+.options-container img,
+.matching-term img,
+.matching-def img {
+    max-width: 100%;
+    height: auto;
+    max-height: 300px;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Ограничение ширины контейнеров matching */
+.row[data-question-id-matching] {
+    display: flex;
+    gap: 16px;
+}
+
+.row[data-question-id-matching] > .col-6 {
+    flex: 1 1 0;
+    max-width: 50%;
+}
+
+.matching-term,
+.matching-def {
+    max-width: 400px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    transition: outline 0.2s;
+    background-color: inherit !important;
+}
+
+.matching-term.selected,
+.matching-def.selected {
+    outline: 2px solid #007bff !important;
+    box-shadow: 0 0 0 2px #007bff33;
+} 

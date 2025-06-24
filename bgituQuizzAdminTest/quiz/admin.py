@@ -11,6 +11,11 @@ from django.urls import path
 from django.contrib import messages
 from .forms import ImportForm, SmartTestForm
 import random
+import json
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+from ckeditor.widgets import CKEditorWidget
+from django.db import models
 
 # Класс-миксин для Unfold и ImportExport
 class UnfoldImportExportAdmin(ImportExportModelAdmin, ModelAdmin):
@@ -70,11 +75,17 @@ class QuestionResource(resources.ModelResource):
 @admin.register(Question)
 class QuestionAdmin(UnfoldImportExportAdmin):
     resource_class = QuestionResource
-    list_display = ('question', 'block', 'discipline', 'competence', 'type', 'points')
-    list_filter = ('block', 'discipline', 'competence', 'type')
-    search_fields = ('question', 'block__name', 'discipline__name', 'competence__name')
-    
+    list_display = ('id', 'question', 'block', 'discipline', 'competence', 'type', 'points')
+    search_fields = ('id', 'question', 'block__name', 'discipline__name', 'competence__name', 'answer')
+    list_filter = ('block', 'discipline', 'competence', 'type', 'points')
+    ordering = ('block', 'discipline', 'competence', 'type', 'points')
+    list_per_page = 50
+    list_editable = ('block', 'discipline', 'competence', 'type', 'points')
     change_list_template = "admin/quiz/question_changelist.html"
+
+    formfield_overrides = {
+        models.TextField: {'widget': CKEditorWidget},
+    }
 
     def get_urls(self):
         urls = super().get_urls()
@@ -131,20 +142,34 @@ class QuestionAdmin(UnfoldImportExportAdmin):
 
 @admin.register(Discipline)
 class DisciplineAdmin(ModelAdmin):
-    list_display = ('name',)
-    search_fields = ('name',)
+    list_display = ('id', 'name')
+    search_fields = ('id', 'name')
+    list_filter = ('name',)
+    ordering = ('name',)
+    list_per_page = 50
+    list_editable = ('name',)
 
 @admin.register(Competence)
 class CompetenceAdmin(ModelAdmin):
-    list_display = ('name',)
-    search_fields = ('name',)
-    
+    list_display = ('id', 'name')
+    search_fields = ('id', 'name')
+    list_filter = ('name',)
+    ordering = ('name',)
+    list_per_page = 50
+    list_editable = ('name',)
+
 @admin.register(Test)
 class TestAdmin(ModelAdmin):
-    list_display = ('id', 'name', 'created_at', 'timer', 'codepass')
-    search_fields = ('name',)
-    fields = ('name', 'description', 'timer', 'codepass', 'questions', 'created_at', 'disciplines', 'competences')
+    list_display = ('id', 'name', 'description', 'timer', 'codepass', 'created_at')
+    search_fields = ('id', 'name', 'description', 'codepass', 'questions__question', 'disciplines__name', 'competences__name')
+    list_filter = ('created_at', 'timer', 'disciplines', 'competences', 'questions')
+    ordering = ('-created_at', 'name', 'timer', 'codepass')
+    list_per_page = 50
+    filter_horizontal = ('questions', 'disciplines', 'competences')
     readonly_fields = ('created_at',)
+    list_editable = ('name', 'description', 'timer', 'codepass')
+    date_hierarchy = 'created_at'
+    fields = ('name', 'description', 'timer', 'codepass', 'questions', 'created_at', 'disciplines', 'competences')
     change_list_template = "admin/quiz/test_changelist.html"
 
     def get_urls(self):
@@ -176,7 +201,7 @@ class TestAdmin(ModelAdmin):
 
                 if available_count < requested_count:
                     form.add_error(None, f'Недостаточно вопросов. Найдено {available_count}, запрошено {requested_count}.')
-                else:
+            else:
                     random_questions = random.sample(list(filtered_questions), requested_count)
                     
                     new_test = Test.objects.create(
@@ -205,15 +230,67 @@ class TestAdmin(ModelAdmin):
 @admin.register(Block)
 class BlockAdmin(ModelAdmin):
     list_display = ('id', 'name')
-    search_fields = ('name',)
+    search_fields = ('id', 'name')
+    list_filter = ('name',)
+    ordering = ('name',)
+    list_per_page = 50
+    list_editable = ('name',)
 
 @admin.register(TestResult)
 class TestResultAdmin(ModelAdmin):
-    list_display = ('student_full_name', 'student_group', 'test', 'total_score', 'max_score', 'percent', 'started_at', 'finished_at', 'duration_sec', 'created_at')
-    search_fields = ('student_full_name', 'student_group', 'test__name')
+    list_display = ('id', 'student_full_name', 'student_group', 'test', 'total_score', 'max_score', 'percent', 'closed_score', 'open_score', 'started_at', 'finished_at', 'duration_sec', 'created_at')
+    search_fields = ('id', 'student_full_name', 'student_group', 'test__name')
     list_filter = ('test', 'student_group', 'created_at')
-    readonly_fields = ('created_at',)
+    readonly_fields = ('created_at', 'pretty_details', 'closed_score', 'total_score', 'percent')
+    ordering = ('-created_at', 'student_full_name', 'test')
+    list_per_page = 50
+    date_hierarchy = 'created_at'
+    list_editable = ('student_full_name', 'student_group', 'test', 'total_score', 'max_score', 'percent', 'open_score', 'started_at', 'finished_at', 'duration_sec')
+    fields = ('student_full_name', 'student_group', 'test', 'total_score', 'max_score', 'percent', 'closed_score', 'open_score', 'started_at', 'finished_at', 'duration_sec', 'created_at', 'pretty_details', 'details')
+
+    def save_model(self, request, obj, form, change):
+        # вычисляем closed_score по details
+        try:
+            details = obj.details if isinstance(obj.details, list) else json.loads(obj.details)
+        except Exception:
+            details = []
+        closed_score = 0
+        for d in details:
+            # открытый вопрос — type == 'open', остальные — закрытые
+            # если type отсутствует, считаем как закрытый
+            qtype = d.get('type', None)
+            if qtype != 'open':
+                closed_score += float(d.get('score', 0))
+        obj.closed_score = closed_score
+        # total_score = closed_score + open_score
+        obj.total_score = obj.closed_score + obj.open_score
+        # percent = (total_score / max_score) * 100
+        obj.percent = (obj.total_score / obj.max_score * 100) if obj.max_score else 0
+        super().save_model(request, obj, form, change)
+
+    def pretty_details(self, obj):
+        try:
+            details = obj.details if isinstance(obj.details, list) else json.loads(obj.details)
+        except Exception:
+            return obj.details  # если не парсится, показываем как есть
+
+        html = "<ol>"
+        for d in details:
+            html += "<li>"
+            html += f"<b>Вопрос:</b> {d.get('text', '')}<br>"
+            html += f"<b>Ваш ответ:</b> {d.get('userAnswer', '')}<br>"
+            html += f"<b>Правильный ответ:</b> {d.get('correctAnswer', '')}<br>"
+            html += f"<b>Баллы:</b> {d.get('score', 0)} / {d.get('maxScore', 0)}"
+            html += "</li>"
+        html += "</ol>"
+        return mark_safe(html)
+    pretty_details.short_description = "Детальные ответы"
 
 @admin.register(TestBlock)
 class TestBlockAdmin(ModelAdmin):
-    pass 
+    list_display = ('id', 'test', 'block', 'num_questions')
+    search_fields = ('id', 'test__name', 'block__name')
+    list_filter = ('test', 'block')
+    ordering = ('test', 'block')
+    list_per_page = 50
+    list_editable = ('test', 'block', 'num_questions') 

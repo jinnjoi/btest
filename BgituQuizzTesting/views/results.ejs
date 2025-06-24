@@ -6,6 +6,14 @@
     <title>Результаты теста</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/styles.css" rel="stylesheet">
+    <style>
+        .detailed-results img {
+            max-width: 100%;
+            height: auto;
+            margin: 0.5rem 0;
+            display: block;
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-5">
@@ -39,9 +47,9 @@
                             <h4>Детальные результаты</h4>
                             <% results.forEach(function(result, idx) { %>
                                 <div class="mb-2">
-                                    <strong>Вопрос <%= idx+1 %>:</strong> <%= result.text %><br>
+                                    <strong>Вопрос <%= idx+1 %>:</strong> <%- result.text %><br>
                                     <strong>Ваш ответ:</strong> <%= result.userAnswer %><br>
-                                    <strong>Правильный ответ:</strong> <%= result.correctAnswer %><br>
+                                    <strong>Правильный ответ:</strong> <%- result.correctAnswer %><br>
                                     <strong>Балл:</strong> <%= result.score.toFixed(2) %> / <%= result.maxScore.toFixed(2) %>
                                     (<%= result.maxScore > 0 ? (result.score/result.maxScore*100).toFixed(1) : 0 %>%)
                                     <div class="progress my-2" style="height: 1rem;">

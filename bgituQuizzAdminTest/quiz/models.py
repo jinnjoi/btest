@@ -1,4 +1,5 @@
 from django.db import models
+from ckeditor.fields import RichTextField
 
 # Create your models here.
 
@@ -73,7 +74,7 @@ class Question(models.Model):
     block_name = models.CharField(max_length=255, blank=True, verbose_name='Название блока (для импорта)')
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name='Тип вопроса')
     points = models.PositiveIntegerField(default=1, verbose_name='Баллы')
-    question = models.TextField(verbose_name='Вопрос')
+    question = RichTextField(verbose_name='Вопрос')
     answer = models.TextField(verbose_name='Ответ')
 
     def __str__(self):
@@ -93,6 +94,8 @@ class TestResult(models.Model):
     total_score = models.FloatField("Набрано баллов")
     max_score = models.FloatField("Максимум баллов")
     percent = models.FloatField("Процент", help_text="Процент правильных ответов")
+    closed_score = models.FloatField("Баллы за закрытые вопросы", default=0)
+    open_score = models.FloatField("Баллы за открытые вопросы", default=0)
     # Время
     started_at = models.DateTimeField("Начало теста")
     finished_at = models.DateTimeField("Окончание теста")

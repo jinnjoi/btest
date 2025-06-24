@@ -70,30 +70,29 @@ app.post('/api/tests/:id/passcode', async (req, res) => {
 
 // 3. Получение вопросов теста с учётом блоков и количества
 app.get('/api/tests/:id/questions', async (req, res) => {
-    function parseOptionsFromQuestion(text) {
-        // Ищет варианты вида a) ...\nb) ...\nc) ...
-        const regex = /([a-zа-яё])\)\s([^\n]+)/gi;
-        let match;
+    function parseOptionsFromQuestion(html) {
+        // 1. Ищем первую метку варианта
+        const regex = /([a-zа-яё0-9])\)/i;
+        const firstMatch = regex.exec(html);
+        if (!firstMatch) return [];
+        const optionsPart = html.slice(firstMatch.index);
+        // 2. Делим на варианты по меткам
+        const optionRegex = /([a-zа-яё0-9])\)/ig;
+        let match, indices = [];
+        while ((match = optionRegex.exec(optionsPart)) !== null) {
+            indices.push(match.index);
+        }
         const options = [];
-        while ((match = regex.exec(text)) !== null) {
-            options.push({ key: match[1], text: match[2].trim() });
+        for (let i = 0; i < indices.length; i++) {
+            const start = indices[i] + 2; // +2 чтобы пропустить саму метку
+            const end = i + 1 < indices.length ? indices[i + 1] : optionsPart.length;
+            let content = optionsPart.slice(start, end).trim();
+            options.push(content);
         }
         return options;
     }
-    function parsePairsFromQuestion(text) {
-        // Делит на две части: номера и буквы
-        // Пример: 1. ...\n2. ...\nA. ...\nB. ...
-        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        const left = [], right = [];
-        for (const line of lines) {
-            if (/^\d+\./.test(line)) left.push(line);
-            else if (/^[A-ZА-ЯЁ]\./.test(line)) right.push(line);
-        }
-        return { left, right };
-    }
     try {
         const testId = BigInt(req.params.id);
-        // Получаем тест с блоками и настройками количества вопросов
         const test = await prisma.quiz_test.findUnique({
             where: { id: testId },
             select: {
@@ -101,17 +100,6 @@ app.get('/api/tests/:id/questions', async (req, res) => {
                 name: true,
                 description: true,
                 timer: true,
-                quiz_testblock: {
-                    select: {
-                        quiz_block: {
-                            select: {
-                                id: true,
-                                name: true,
-                                num_questions: true // сколько вопросов брать из блока
-                            }
-                        }
-                    }
-                },
                 quiz_test_questions: {
                     select: {
                         quiz_question: {
@@ -135,58 +123,38 @@ app.get('/api/tests/:id/questions', async (req, res) => {
         if (!test) {
             return res.status(404).json({ error: 'Тест не найден' });
         }
-        // Группируем вопросы по блокам
-        const blockMap = {};
-        for (const b of test.quiz_testblock) {
-            blockMap[b.quiz_block.id.toString()] = {
-                name: b.quiz_block.name,
-                count: b.quiz_block.num_questions || 0,
-                questions: []
-            };
-        }
-        for (const q of test.quiz_test_questions) {
+        // Просто возвращаем все вопросы в исходном порядке
+        const selectedQuestions = test.quiz_test_questions.map(q => {
             const qq = q.quiz_question;
-            if (qq.block_id && blockMap[qq.block_id.toString()]) {
-                blockMap[qq.block_id.toString()].questions.push(qq);
+            let type = qq.type;
+            let text = qq.question;
+            let originalType = qq.type;
+            // Для closed и multiclosed всегда multiple_choice, но НЕ формируем options
+            if (qq.type === 'closed' || qq.type === 'multiclosed') {
+                type = 'multiple_choice';
+                originalType = qq.type;
             }
-        }
-        // Для каждого блока выбираем случайные N вопросов
-        const selectedQuestions = [];
-        for (const blockId in blockMap) {
-            const block = blockMap[blockId];
-            let questions = block.questions;
-            // Перемешиваем
-            questions = questions.sort(() => Math.random() - 0.5);
-            // Берём нужное количество
-            questions = questions.slice(0, block.count);
-            // Форматируем вопросы
-            for (const qq of questions) {
-                let options = undefined, pairs = undefined;
-                if (qq.type === 'closed' || qq.type === 'multiclosed') {
-                    options = parseOptionsFromQuestion(qq.question).map(opt => opt.text);
-                }
-                if (qq.type === 'pairs') {
-                    const lines = qq.question.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                    const terms = lines.filter(l => /^\d+\./.test(l));
-                    const definitions = lines.filter(l => /^[A-ZА-ЯЁ]\./.test(l));
-                    pairs = terms.map((term, i) => ({
-                        term,
-                        definition: definitions[i] || ''
-                    }));
-                }
-                selectedQuestions.push({
-                    id: qq.id.toString(),
-                    block: qq.block_name || (qq.quiz_block ? qq.quiz_block.name : ''),
-                    type: qq.type,
-                    text: qq.question,
-                    options,
-                    pairs,
-                    answer: qq.answer, // всегда возвращаем как есть
-                    imageUrl: qq.type === 'image' ? qq.answer : undefined,
-                    points: qq.points
-                });
-            }
-        }
+            // Надёжное определение pairs
+            const isPairs = (qq.type || '').toLowerCase() === 'pairs';
+            return {
+                id: qq.id.toString(),
+                block: qq.block_name || (qq.quiz_block ? qq.quiz_block.name : ''),
+                type: isPairs ? 'matching' : type,
+                originalType: isPairs ? 'pairs' : originalType,
+                text: isPairs
+                    ? 'Соедините понятия и определения'
+                    : text,
+                variantsHtml: isPairs
+                    ? qq.question
+                    : undefined,
+                // options убрано
+                answer: qq.answer,
+                imageUrl: qq.type === 'image' ? qq.answer : undefined,
+                points: qq.points
+            };
+        });
+        // Логируем итоговый массив
+        console.log('selectedQuestions:', selectedQuestions);
         res.json({
             id: test.id.toString(),
             title: test.name,
@@ -412,6 +380,8 @@ app.post('/api/submit', async (req, res) => {
                     break;
                 }
                 case 'pairs': {
+                    console.log('user answer raw:', answer);
+                    console.log('correct answer raw:', question.answer);
                     let userPairs = [];
                     if (Array.isArray(answer) && answer.length && typeof answer[0] === 'object') {
                         userPairs = answer.map(p => {
@@ -421,19 +391,20 @@ app.post('/api/submit', async (req, res) => {
                         });
                     } else if (typeof answer === 'string') {
                         userPairs = answer.split(/\r?\n/).map(line => {
-                            const m = line.match(/^(\d+)\s*[-–—]\s*([A-ZА-ЯЁ])/i);
+                            // Устойчиво к разным тире, пробелам, регистру
+                            const m = line.match(/^(\d+)\s*[-–—\u2013\u2014]+\s*([A-ZА-ЯЁ])/i);
                             return m ? { term: m[1], definition: m[2] } : null;
                         }).filter(Boolean);
                     }
+                    if (!userPairs.length) console.log('userPairs пустой после парсинга!');
                     userAnswer = userPairs.map(p => `${p.term} – ${p.definition}`).join('\n');
+                    let correctPairs = [];
                     correctAnswer = (question.answer || '').split(/\r?\n/).map(line => {
-                        const m = line.match(/^(\d+)\s*[-–—]\s*([A-ZА-ЯЁ])/i);
+                        const m = line.match(/^(\d+)\s*[-–—\u2013\u2014]+\s*([A-ZА-ЯЁ])/i);
+                        if (m) correctPairs.push({ term: m[1], definition: m[2] });
                         return m ? `${m[1]} – ${m[2]}` : null;
                     }).filter(Boolean).join('\n');
-                    const correctPairs = (question.answer || '').split(/\r?\n/).map(line => {
-                        const m = line.match(/^(\d+)\s*[-–—]\s*([A-ZА-ЯЁ])/i);
-                        return m ? { term: m[1], definition: m[2] } : null;
-                    }).filter(Boolean);
+                    if (!correctPairs.length) console.log('correctPairs пустой после парсинга!');
                     let correctCount = 0;
                     correctPairs.forEach(cp => {
                         if (userPairs.find(up => up.term === cp.term && normalizeLetter(up.definition) === normalizeLetter(cp.definition))) {
@@ -457,6 +428,13 @@ app.post('/api/submit', async (req, res) => {
             });
         }
         const maxScore = questions.reduce((sum, q) => sum + q.points, 0);
+        // Вычисляем closed_score и open_score
+        let closedScore = 0, openScore = 0;
+        for (const r of results) {
+            // Если type отсутствует, считаем как закрытый
+            if (r.type === 'open') openScore += r.score;
+            else closedScore += r.score;
+        }
         // Сохраняем результат в БД (quiz_testresult)
         const now = new Date();
         const startedAt = new Date(now.getTime() - (typeof durationSec === 'number' ? durationSec : 0) * 1000);
@@ -472,7 +450,9 @@ app.post('/api/submit', async (req, res) => {
                 duration_sec: typeof durationSec === 'number' ? durationSec : 0,
                 details: results,
                 test_id: BigInt(testId),
-                created_at: now
+                created_at: now,
+                closed_score: closedScore,
+                open_score: openScore
             }
         });
         res.render('results', {

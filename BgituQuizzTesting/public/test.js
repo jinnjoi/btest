@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-        const response = await fetch(`http://localhost:3000/api/tests/${testId}`);
+        const response = await fetch(`http://localhost:3000/api/tests/${testId}/questions`);
         testData = await response.json();
         
         document.getElementById('testTitle').textContent = testData.title;
@@ -102,7 +102,109 @@ function renderLatexInElement(element, text) {
     element.innerHTML = html;
 }
 
+function splitQuestionAndOptions(html) {
+    // Оставляем только текст и <img>
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    function clean(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            if (node.tagName.toLowerCase() === 'img') {
+                return node.outerHTML;
+            } else {
+                let result = '';
+                node.childNodes.forEach(child => {
+                    result += clean(child);
+                });
+                return result;
+            }
+        } else if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        return '';
+    }
+    const onlyTextAndImg = clean(temp);
+
+    // Ищем все метки вариантов
+    const optionRegex = /([a-zA-Zа-яА-ЯёЁ0-9])\)/g;
+    let match, indices = [];
+    while ((match = optionRegex.exec(onlyTextAndImg)) !== null) {
+        indices.push({ label: match[1], index: match.index });
+    }
+    let options = [];
+    for (let i = 0; i < indices.length; i++) {
+        const start = indices[i].index;
+        const end = i + 1 < indices.length ? indices[i + 1].index : onlyTextAndImg.length;
+        let content = onlyTextAndImg.slice(start, end).trim();
+        options.push(content);
+    }
+    // Вопрос — всё до первой метки, варианты — дальше
+    const questionPart = indices.length > 0 ? onlyTextAndImg.slice(0, indices[0].index).trim() : onlyTextAndImg;
+    return { question: questionPart, options: options };
+}
+
+function appendTextAndImagesOnlyToElement(element, htmlString) {
+    const temp = document.createElement('div');
+    temp.innerHTML = htmlString;
+    function recursiveAppend(node, target) {
+        for (let child of node.childNodes) {
+            if (child.nodeType === Node.TEXT_NODE) {
+                target.appendChild(document.createTextNode(child.textContent));
+            } else if (child.nodeType === Node.ELEMENT_NODE && child.tagName === 'IMG') {
+                target.appendChild(child.cloneNode(true));
+            } else if (child.nodeType === Node.ELEMENT_NODE) {
+                recursiveAppend(child, target);
+            }
+        }
+    }
+    recursiveAppend(temp, element);
+}
+
+function splitMatchingQuestionAndAnswers(html) {
+    // 1. Оставляем только текст и <img>
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    function clean(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            if (node.tagName.toLowerCase() === 'img') {
+                return node.outerHTML;
+            } else {
+                let result = '';
+                node.childNodes.forEach(child => {
+                    result += clean(child);
+                });
+                return result;
+            }
+        } else if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        return '';
+    }
+    let onlyTextAndImg = clean(temp);
+
+    // Удаляем всё до первой метки (1. или A.)
+    const firstMatch = onlyTextAndImg.match(/([0-9]+|[A-ZА-ЯЁ])\./i);
+    if (firstMatch && firstMatch.index > 0) {
+        onlyTextAndImg = onlyTextAndImg.slice(firstMatch.index);
+    }
+
+    const regex = /([0-9]+|[A-ZА-ЯЁ])\.\s*([\s\S]*?)(?=([0-9]+|[A-ZА-ЯЁ])\.|$)/gmi;
+    const terms = [];
+    const definitions = [];
+    let match;
+    while ((match = regex.exec(onlyTextAndImg)) !== null) {
+        const label = match[1];
+        const content = match[2].trim();
+        if (/^[0-9]+$/.test(label)) {
+            terms.push(content);
+        } else {
+            definitions.push(content);
+        }
+    }
+    return { terms, definitions };
+}
+
 function renderQuestions() {
+    console.log('testData:', testData);
     const container = document.getElementById('questionsContainer');
     testData.questions.forEach((question, index) => {
         console.log('renderQuestions:', question.id, question.type, question);
@@ -116,41 +218,16 @@ function renderQuestions() {
             <span class="badge bg-primary">${question.block}</span>
         `;
 
-        // Парсим медиа
-        const media = extractMediaFromText(question.text);
+        let questionText = question.text;
+        let options = [];
+        if (question.type === 'multiple_choice') {
+            const split = splitQuestionAndOptions(question.text);
+            questionText = split.question;
+            options = split.options;
+        }
         const text = document.createElement('div');
         text.className = 'question-text';
-        renderLatexInElement(text, media.text);
-
-        // Добавляем картинки
-        media.images.forEach(url => {
-            const img = document.createElement('img');
-            img.src = url;
-            img.className = 'img-fluid my-2 d-block';
-            img.alt = 'Изображение к вопросу';
-            text.appendChild(img);
-        });
-        // Добавляем видео
-        media.videos.forEach(url => {
-            const video = document.createElement('video');
-            video.src = url;
-            video.controls = true;
-            video.className = 'my-2 d-block';
-            text.appendChild(video);
-        });
-        // Добавляем YouTube
-        media.youtubes.forEach(id => {
-            const iframe = document.createElement('iframe');
-            iframe.src = `https://www.youtube.com/embed/${id}`;
-            iframe.width = 400;
-            iframe.height = 225;
-            iframe.frameBorder = 0;
-            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-            iframe.allowFullscreen = true;
-            iframe.className = 'my-2 d-block';
-            text.appendChild(iframe);
-        });
-
+        appendTextAndImagesOnlyToElement(text, questionText);
         questionCard.appendChild(header);
         questionCard.appendChild(text);
 
@@ -159,12 +236,18 @@ function renderQuestions() {
                 renderOpenQuestion(questionCard, question);
                 break;
             case 'multiple_choice':
-                renderMultipleChoiceQuestion(questionCard, question);
+                renderMultipleChoiceQuestion(questionCard, { ...question, options });
                 break;
             case 'matching':
-            case 'pairs':
-                renderMatchingQuestion(questionCard, question);
+            case 'pairs': {
+                // Используем variantsHtml если есть, иначе text
+                const htmlForMatching = question.variantsHtml || question.text;
+                console.log('matching question:', question);
+                console.log('Передаю в splitMatchingQuestionAndAnswers:', htmlForMatching);
+                const { terms, definitions } = splitMatchingQuestionAndAnswers(htmlForMatching);
+                renderMatchingQuestion(questionCard, { ...question, pairs: { terms, definitions } });
                 break;
+            }
             case 'image':
                 renderImageQuestion(questionCard, question);
                 break;
@@ -207,6 +290,85 @@ function renderOpenQuestion(container, question) {
     });
 }
 
+function appendTextAndImagesOnly(label, htmlString) {
+    // 1. Оставляем только текст и <img>
+    const temp = document.createElement('div');
+    temp.innerHTML = htmlString;
+    function clean(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            if (node.tagName.toLowerCase() === 'img') {
+                return node.outerHTML;
+            } else {
+                let result = '';
+                node.childNodes.forEach(child => {
+                    result += clean(child);
+                });
+                return result;
+            }
+        } else if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        return '';
+    }
+    const onlyTextAndImg = clean(temp);
+
+    // 2. Разбиваем по меткам вариантов (a), б), c), d), 1), А), Б) и т.д.)
+    const optionRegex = /([a-zA-Zа-яА-ЯёЁ0-9])\)/g;
+    let match, indices = [];
+    while ((match = optionRegex.exec(onlyTextAndImg)) !== null) {
+        indices.push({ label: match[1], index: match.index });
+    }
+    // Если вариантов нет или только один, работаем по-старому
+    if (indices.length <= 1) {
+        // Старое поведение: просто текст и картинки
+        const temp2 = document.createElement('div');
+        temp2.innerHTML = htmlString;
+        function recursiveAppend(node, target) {
+            for (let child of node.childNodes) {
+                if (child.nodeType === Node.TEXT_NODE) {
+                    target.appendChild(document.createTextNode(child.textContent));
+                } else if (child.nodeType === Node.ELEMENT_NODE && child.tagName === 'IMG') {
+                    target.appendChild(child.cloneNode(true));
+                } else if (child.nodeType === Node.ELEMENT_NODE) {
+                    recursiveAppend(child, target);
+                }
+            }
+        }
+        recursiveAppend(temp2, label);
+        return;
+    }
+    // 3. Парсим варианты
+    for (let i = 0; i < indices.length; i++) {
+        const start = indices[i].index;
+        const end = i + 1 < indices.length ? indices[i + 1].index : onlyTextAndImg.length;
+        let content = onlyTextAndImg.slice(start, end).trim();
+        // 4. Вытаскиваем <img> и текст
+        let images = [];
+        content = content.replace(/<img[^>]*src=["']([^"']+)["'][^>]*>/g, (m, src) => {
+            images.push(src);
+            return '';
+        });
+        // 5. Добавляем в label: буква, текст, картинки
+        const letterMatch = content.match(optionRegex);
+        let letter = indices[i].label;
+        let text = content.replace(optionRegex, '').trim();
+        // Буква и скобка
+        label.appendChild(document.createTextNode(letter + ') '));
+        if (text) label.appendChild(document.createTextNode(text + ' '));
+        images.forEach(src => {
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = 'img-fluid option-img';
+            img.alt = 'Изображение к варианту';
+            label.appendChild(img);
+        });
+        // Перенос строки между вариантами, кроме последнего
+        if (i < indices.length - 1) {
+            label.appendChild(document.createElement('br'));
+        }
+    }
+}
+
 function renderMultipleChoiceQuestion(container, question) {
     const optionsContainer = document.createElement('div');
     optionsContainer.className = 'options-container';
@@ -223,10 +385,12 @@ function renderMultipleChoiceQuestion(container, question) {
         input.name = `question_${question.id}`;
         input.value = index;
         input.dataset.questionId = question.id;
+        input.id = `q${question.id}_opt${index}`;
 
         const label = document.createElement('label');
         label.className = 'form-check-label';
-        label.textContent = option;
+        label.setAttribute('for', input.id);
+        appendTextAndImagesOnly(label, option);
 
         div.appendChild(input);
         div.appendChild(label);
@@ -241,92 +405,136 @@ function renderMatchingQuestion(container, question) {
     matchingContainer.className = 'row';
     matchingContainer.setAttribute('data-question-id-matching', question.id);
 
-    // Копируем определения для drag-n-drop
-    let definitions = [...(question.pairs.definitions || [])];
+    // Цвета для пар (можно расширить)
+    const pairColors = [
+        '#ffd966', '#a4c2f4', '#b6d7a8', '#f4cccc', '#d9d2e9', '#f9cb9c', '#cfe2f3', '#ead1dc', '#fff2cc', '#d0e0e3'
+    ];
+
+    // Состояние: пары (массив объектов {left: i, right: j, color}), выбранный элемент
+    let pairs = [];
+    let selected = null; // {side: 'left'|'right', index: number, el: HTMLElement}
 
     // Первый столбик — термины (цифры)
     const termsCol = document.createElement('div');
     termsCol.className = 'col-6';
+    const leftNodes = [];
     (question.pairs.terms || []).forEach((term, i) => {
         const div = document.createElement('div');
         div.className = 'matching-term mb-2 p-2 border bg-light';
-        div.textContent = term;
+        // Добавляем номер
+        const numSpan = document.createElement('span');
+        numSpan.style.fontWeight = 'bold';
+        numSpan.textContent = (i + 1) + '. ';
+        div.appendChild(numSpan);
+        appendTextAndImagesOnlyToElement(div, term);
         div.dataset.index = i;
+        div.dataset.side = 'left';
+        div.style.cursor = 'pointer';
+        leftNodes.push(div);
         termsCol.appendChild(div);
     });
 
-    // Второй столбик — определения (буквы, drag-n-drop)
+    // Второй столбик — определения (буквы)
     const defsCol = document.createElement('div');
     defsCol.className = 'col-6';
+    const rightNodes = [];
+    (question.pairs.definitions || []).forEach((definition, j) => {
+        const div = document.createElement('div');
+        div.className = 'matching-def mb-2 p-2 border bg-white';
+        // Добавляем букву
+        const letterSpan = document.createElement('span');
+        letterSpan.style.fontWeight = 'bold';
+        letterSpan.textContent = String.fromCharCode(65 + j) + '. ';
+        div.appendChild(letterSpan);
+        appendTextAndImagesOnlyToElement(div, definition);
+        div.dataset.index = j;
+        div.dataset.side = 'right';
+        div.style.cursor = 'pointer';
+        rightNodes.push(div);
+        defsCol.appendChild(div);
+    });
 
-    function renderDefs() {
-        defsCol.innerHTML = '';
-        definitions.forEach((definition, i) => {
-            const div = document.createElement('div');
-            div.className = 'matching-def mb-2 p-2 border bg-white';
-            div.textContent = definition;
-            div.draggable = true;
-            div.dataset.index = i;
-
-            div.ondragstart = (e) => {
-                e.dataTransfer.setData('text/plain', i);
-                div.classList.add('dragging');
-            };
-            div.ondragend = () => {
-                div.classList.remove('dragging');
-            };
-            div.ondragover = (e) => e.preventDefault();
-            defsCol.appendChild(div);
+    // Функция для обновления цветов
+    function updateColors() {
+        // Сбросить все
+        leftNodes.forEach(div => {
+            div.style.backgroundColor = '';
+            div.style.outline = '';
+            div.style.boxShadow = '';
+            div.classList.remove('selected');
         });
-    }
-    renderDefs();
-
-    // Drag-n-drop логика: меняем местами определения
-    defsCol.ondragover = (e) => {
-        e.preventDefault();
-        const dragging = defsCol.querySelector('.dragging');
-        const afterElement = getDragAfterElement(defsCol, e.clientY);
-        if (afterElement == null) {
-            defsCol.appendChild(dragging);
-        } else {
-            defsCol.insertBefore(dragging, afterElement);
-        }
-    };
-    defsCol.ondrop = (e) => {
-        e.preventDefault();
-        const fromIdx = +e.dataTransfer.getData('text/plain');
-        const draggingDef = definitions[fromIdx];
-        // Определяем, куда вставить
-        const afterElement = getDragAfterElement(defsCol, e.clientY);
-        let toIdx = definitions.length;
-        if (afterElement) {
-            toIdx = +afterElement.dataset.index;
-        }
-        // Удаляем и вставляем
-        definitions.splice(fromIdx, 1);
-        definitions.splice(toIdx, 0, draggingDef);
-        renderDefs();
-    };
-
-    function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.matching-def:not(.dragging)')];
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
+        rightNodes.forEach(div => {
+            div.style.backgroundColor = '';
+            div.style.outline = '';
+            div.style.boxShadow = '';
+            div.classList.remove('selected');
+        });
+        // Окрасить пары рамкой
+        pairs.forEach((pair, idx) => {
+            const color = pairColors[idx % pairColors.length];
+            if (leftNodes[pair.left]) leftNodes[pair.left].style.outline = `2px solid ${color}`;
+            if (rightNodes[pair.right]) rightNodes[pair.right].style.outline = `2px solid ${color}`;
+        });
+        // Выделить выбранный (поверх цветной рамки)
+        if (selected) {
+            const arr = selected.side === 'left' ? leftNodes : rightNodes;
+            if (arr[selected.index]) {
+                arr[selected.index].classList.add('selected');
+                arr[selected.index].style.outline = '2px solid #007bff';
+                arr[selected.index].style.boxShadow = '0 0 0 2px #007bff33';
             }
-        }, { offset: -Infinity }).element;
+        }
+        // Обновляем matchingResult в DOM
+        container.dataset.matchingResult = JSON.stringify(pairs);
     }
+
+    // Клик по элементу
+    function handleClick(side, index, el) {
+        console.log('CLICK', side, index, el);
+        // Если этот элемент уже в паре — ничего не делаем
+        if (pairs.some(pair => pair[side] === index)) return;
+        // Если выбран элемент с той же стороны — снять выделение
+        if (selected && selected.side === side && selected.index === index) {
+            selected = null;
+            updateColors();
+            return;
+        }
+        // Если выбран элемент с другой стороны — формируем пару
+        if (selected && selected.side !== side) {
+            // Удаляем старую пару, если этот элемент уже был в паре
+            pairs = pairs.filter(pair => pair.left !== (side === 'left' ? index : selected.index) && pair.right !== (side === 'right' ? index : selected.index));
+            // Добавляем новую пару
+            const leftIdx = side === 'left' ? index : selected.index;
+            const rightIdx = side === 'right' ? index : selected.index;
+            pairs.push({ left: leftIdx, right: rightIdx });
+            selected = null;
+            updateColors();
+            return;
+        }
+        // Просто выделяем этот элемент
+        selected = { side, index, el };
+        updateColors();
+    }
+
+    // Навешиваем обработчики через addEventListener
+    leftNodes.forEach((div, i) => {
+        div.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleClick('left', i, div);
+        });
+    });
+    rightNodes.forEach((div, j) => {
+        div.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleClick('right', j, div);
+        });
+    });
+
+    updateColors();
 
     matchingContainer.appendChild(termsCol);
     matchingContainer.appendChild(defsCol);
     container.appendChild(matchingContainer);
-
-    // Сохраняем результат в DOM для последующей проверки
-    container.dataset.matchingResult = JSON.stringify(definitions);
 }
 
 let selectedMatchingItem = null;
@@ -495,21 +703,18 @@ function submitTest() {
 
     // Matching (соответствие)
     testData.questions.filter(q => q.type === 'matching' || q.type === 'pairs').forEach(question => {
-        console.log('matching id:', question.id);
         const container = document.querySelector(`[data-question-id-matching='${question.id}']`);
-        console.log('matching container:', container);
         if (!container) return;
-        // Собрать термины и определения по порядку
-        const terms = Array.from(container.querySelectorAll('.col-6')[0].children).map(div => div.textContent.trim());
-        const defs = Array.from(container.querySelectorAll('.col-6')[1].children).map(div => div.textContent.trim());
-        // Формируем пары
-        const pairs = terms.map((term, i) => ({ term, definition: defs[i] || '' }));
-        console.log('matching terms:', terms);
-        console.log('matching defs:', defs);
-        console.log('matching pairs:', pairs);
+        const pairs = JSON.parse(container.dataset.matchingResult || '[]');
+        // Формируем ответ в формате 1 – C, 2 – E и т.д.
+        const answerLines = pairs.map(pair => {
+            const num = (pair.left + 1).toString();
+            const letter = String.fromCharCode(65 + pair.right);
+            return `${num} – ${letter}`;
+        });
         answers.push({
             questionId: question.id,
-            answer: pairs
+            answer: answerLines.join('\n')
         });
     });
     console.log('answers after matching:', answers);

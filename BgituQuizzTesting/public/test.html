@@ -7,6 +7,17 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <style>
+        .form-check-label img, .question-text img {
+            display: inline-block !important;
+            vertical-align: middle !important;
+            max-width: 100%;
+            height: auto;
+        }
+        .form-check-label p, .form-check-label div {
+            display: inline;
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-4">
@@ -29,5 +40,37 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="test.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Скрипт для склеивания буквы и изображения в одну строку
+        document.querySelectorAll('.form-check-label').forEach(function(label) {
+            // Найти первый img после буквы (обычно это первый img в label)
+            let imgs = label.querySelectorAll('img');
+            if (imgs.length > 0) {
+                let firstImg = imgs[0];
+                // Найти текстовый узел перед картинкой
+                let prev = firstImg.previousSibling;
+                // Если это текстовый узел и заканчивается на "a)", "b)", "c)" и т.д.
+                if (prev && prev.nodeType === Node.TEXT_NODE && /\w\)\s*$/.test(prev.textContent)) {
+                    // Удалить лишние пробелы после буквы
+                    prev.textContent = prev.textContent.replace(/\)\s*$/, ')');
+                    // Переместить картинку прямо после буквы (уже так, но на всякий случай)
+                    // Можно обернуть букву и картинку в span для надёжности
+                    let span = document.createElement('span');
+                    span.style.display = 'inline-flex';
+                    span.style.alignItems = 'center';
+                    // Вставить букву
+                    span.append(prev.textContent);
+                    // Вставить картинку
+                    span.append(firstImg.cloneNode(true));
+                    // Заменить старый текст и картинку на новый span
+                    label.insertBefore(span, firstImg.nextSibling);
+                    prev.textContent = '';
+                    firstImg.remove();
+                }
+            }
+        });
+    });
+    </script>
 </body>
 </html> 

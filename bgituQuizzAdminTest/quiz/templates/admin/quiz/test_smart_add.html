@@ -13,9 +13,9 @@
         {% csrf_token %}
 
         {% if form.non_field_errors %}
-            <div class="alert alert-danger">
+            <div class="border border-red-600 bg-red-50 text-red-600 dark:border-red-500 dark:bg-red-950/20 dark:text-red-400 rounded-default p-4 mb-4">
                 {% for error in form.non_field_errors %}
-                    <span>{{ error }}</span>
+                    <p>{{ error }}</p>
                 {% endfor %}
             </div>
         {% endif %}
