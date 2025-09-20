@@ -730,7 +730,7 @@ function submitTest() {
     const durationSec = Math.floor(durationMs / 1000);
 
     // Отправляем результаты
-    fetch('http://localhost:3000/api/submit', {
+    fetch('/api/submit', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
