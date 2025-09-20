@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-        const response = await fetch(`http://localhost:3000/api/tests/${testId}/questions`);
+        const response = await fetch(`/api/tests/${testId}/questions`);
         testData = await response.json();
         
         document.getElementById('testTitle').textContent = testData.title;
