@@ -42,6 +42,11 @@ docker compose up -d
 
 Эти команды соберут и запустят все сервисы в фоновом режиме.
 
+Для создания учетной записи адимнистратора использовать 
+```bash
+docker exec -it bqt-admintest-1 python manage.py createsuperuser
+```
+
 ### Сервисы
 
 - **Admin panel**: доступен по адресу `http://localhost:{ваш порт}/admin`
@@ -60,8 +65,5 @@ docker compose up -d
 
 Команда `git pull` загрузит последние изменения кода из репозитория. После этого необходимо пересобрать образы, чтобы применить изменения в коде приложений, и перезапустить контейнеры.
 
-Для создания учетной записи адимнистратора использовать 
-```bash
-docker exec -it bqt-admintest-1 python manage.py createsuperuser
-```
+
 
