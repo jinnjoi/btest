@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch(`/api/tests/${testId}/questions`);
         testData = await response.json();
-        
+
         document.getElementById('testTitle').textContent = testData.title;
         const startTime = parseInt(localStorage.getItem('testStartTime') || Date.now());
         const now = Date.now();
@@ -45,7 +45,7 @@ function startTimer() {
     timerInterval = setInterval(() => {
         timeLeft--;
         updateTimerDisplay();
-        
+
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
             submitTest();
@@ -348,6 +348,10 @@ function appendTextAndImagesOnly(label, htmlString) {
             images.push(src);
             return '';
         });
+        content = content.replace(/(https?:\/\/[^\s]+?\.(jpg|jpeg|png|gif|webp))/gi, (m, url) => {
+            images.push(url);
+            return '';
+        });
         // 5. Добавляем в label: буква, текст, картинки
         const letterMatch = content.match(optionRegex);
         let letter = indices[i].label;
@@ -541,7 +545,7 @@ let selectedMatchingItem = null;
 
 function handleMatchingClick(item) {
     if (item.classList.contains('matched')) return;
-    
+
     if (selectedMatchingItem) {
         if (selectedMatchingItem.dataset.type !== item.dataset.type) {
             // Создаем пару
@@ -563,15 +567,15 @@ function handleMatchingClick(item) {
 function renderImageQuestion(container, question) {
     const imageContainer = document.createElement('div');
     imageContainer.className = 'image-container mb-3';
-    
+
     const img = document.createElement('img');
     img.src = question.imageUrl;
     img.className = 'img-fluid';
     img.alt = 'Изображение к вопросу';
-    
+
     imageContainer.appendChild(img);
     container.appendChild(imageContainer);
-    
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-control';
@@ -592,19 +596,19 @@ function renderLatexQuestion(container, question) {
         </ul>
     `;
     container.appendChild(helpText);
-    
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-control';
     input.dataset.questionId = question.id;
     input.placeholder = 'Введите формулу в формате LaTeX...';
     container.appendChild(input);
-    
+
     const preview = document.createElement('div');
     preview.className = 'latex-preview mt-2 p-2 border rounded';
     preview.style.minHeight = '50px';
     container.appendChild(preview);
-    
+
     // Обновляем предпросмотр при вводе
     input.addEventListener('input', () => {
         preview.innerHTML = `$${input.value}$`;
@@ -637,7 +641,7 @@ function saveAnswer(questionId, value) {
     localStorage.setItem('userAnswers', JSON.stringify(saved));
 }
 
-document.addEventListener('input', function(e) {
+document.addEventListener('input', function (e) {
     if (e.target.matches('textarea[data-question-id]')) {
         saveAnswer(e.target.dataset.questionId, e.target.value);
     }
@@ -718,7 +722,7 @@ function submitTest() {
         });
     });
     console.log('answers after matching:', answers);
-    
+
     const studentInfo = JSON.parse(localStorage.getItem('studentInfo'));
     console.log('answers:', answers);
     console.log('studentInfo:', studentInfo);
@@ -742,19 +746,19 @@ function submitTest() {
             durationSec
         })
     })
-    .then(response => {
-        if (response.redirected) {
-            window.location.href = response.url;
-        } else {
-            return response.text().then(text => {
-                document.body.innerHTML = text;
-            });
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка при отправке результатов:', error);
-        alert('Не удалось отправить результаты');
-    });
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else {
+                return response.text().then(text => {
+                    document.body.innerHTML = text;
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка при отправке результатов:', error);
+            alert('Не удалось отправить результаты');
+        });
 
     // Очищаем время и ответы после отправки
     localStorage.removeItem('testStartTime');
