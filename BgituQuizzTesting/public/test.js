@@ -125,7 +125,7 @@ function splitQuestionAndOptions(html) {
     const onlyTextAndImg = clean(temp);
 
     // Ищем все метки вариантов
-    const optionRegex = /([a-zA-Zа-яА-ЯёЁ0-9])\)/g;
+    const optionRegex = /(?:^|\n)([a-zA-Zа-яА-ЯёЁ0-9])\)/g;
     let match, indices = [];
     while ((match = optionRegex.exec(onlyTextAndImg)) !== null) {
         indices.push({ label: match[1], index: match.index });
@@ -313,7 +313,7 @@ function appendTextAndImagesOnly(label, htmlString) {
     const onlyTextAndImg = clean(temp);
 
     // 2. Разбиваем по меткам вариантов (a), б), c), d), 1), А), Б) и т.д.)
-    const optionRegex =/(?:^|\n)([a-zA-Zа-яА-ЯёЁ0-9])\)/g;;
+    const optionRegex =/(?:^|\n)([a-zA-Zа-яА-ЯёЁ0-9])\)/g;
     let match, indices = [];
     while ((match = optionRegex.exec(onlyTextAndImg)) !== null) {
         indices.push({ label: match[1], index: match.index });
@@ -349,7 +349,7 @@ function appendTextAndImagesOnly(label, htmlString) {
             return '';
         });
         content = content.replace(/(https?:\/\/[^)\s<>\"']+?\.(jpg|jpeg|png|gif|webp))/gi, (m, url) => {
-            images.push(url);
+            images.push(m);
             return '';
         });
         // 5. Добавляем в label: буква, текст, картинки

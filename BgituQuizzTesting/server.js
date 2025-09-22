@@ -77,7 +77,7 @@ app.get('/api/tests/:id/questions', async (req, res) => {
         if (!firstMatch) return [];
         const optionsPart = html.slice(firstMatch.index);
         // 2. Делим на варианты по меткам
-        const optionRegex = /([a-zа-яё0-9])\)/ig;
+        const optionRegex = /(?:^|\n)([a-zA-Zа-яА-ЯёЁ0-9])\)/g;
         let match, indices = [];
         while ((match = optionRegex.exec(optionsPart)) !== null) {
             indices.push(match.index);
