@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Загрузка списка тестов
     try {
-        const response = await fetch('http://localhost:3000/api/tests');
+        const response = await fetch('/api/tests');
         const tests = await response.json();
         
         tests.forEach(test => {
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Проверяем кодовое слово через API
         try {
-            const res = await fetch(`http://localhost:3000/api/tests/${selectedTestId}/passcode`, {
+            const res = await fetch(`/api/tests/${selectedTestId}/passcode`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ passcode })
