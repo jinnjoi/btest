@@ -7,7 +7,7 @@
 Для начала клонируйте репозиторий с помощью следующей команды:
 
 ```bash
-git clone https://github.com/VictoriaGailitis/btest
+git clone https://github.com/jinnjoi/btest.git
 ```
 
 После этого перейдите в созданную директорию.
