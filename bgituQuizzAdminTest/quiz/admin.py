@@ -171,6 +171,33 @@ class TestAdmin(ModelAdmin):
     date_hierarchy = 'created_at'
     fields = ('name', 'description', 'timer', 'codepass', 'questions', 'created_at', 'disciplines', 'competences')
     change_list_template = "admin/quiz/test_changelist.html"
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+
+        # Если объект существует (редактирование), фильтруем вопросы
+        if obj and obj.pk:
+            filtered_questions = Question.objects.all()
+
+            # Фильтрация по блокам
+            if obj.blocks.exists():
+                block_ids = obj.blocks.values_list('id', flat=True)
+                filtered_questions = filtered_questions.filter(block_id__in=block_ids)
+
+            # Фильтрация по дисциплинам
+            if obj.disciplines.exists():
+                discipline_ids = obj.disciplines.values_list('id', flat=True)
+                filtered_questions = filtered_questions.filter(discipline_id__in=discipline_ids)
+
+            # Фильтрация по компетенциям
+            if obj.competences.exists():
+                competence_ids = obj.competences.values_list('id', flat=True)
+                filtered_questions = filtered_questions.filter(competence_id__in=competence_ids)
+
+            form.base_fields['questions'].queryset = filtered_questions
+
+        return form
+
 
     def get_urls(self):
         urls = super().get_urls()
